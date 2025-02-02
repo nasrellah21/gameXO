@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لعبة XO</title>
+  <!-- استيراد خط من Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="Untitled.png">
+</head>
+<body>
+  <h1 class="game-title">لعبة XO</h1>
+
+  <div class="mode-select">
+    <label>
+      <input type="radio" name="gameMode" value="pvp" checked> لاعب ضد لاعب
+    </label>
+    <label>
+      <input type="radio" name="gameMode" value="pvc"> لاعب ضد الكمبيوتر
+    </label>
+  </div>
+
+  <div class="level-select" id="levelSelect" style="display: none;">
+    <label for="difficulty">اختر مستوى الصعوبة:</label>
+    <select id="difficulty">
+      <option value="easy">سهل</option>
+      <option value="medium" selected>متوسط</option>
+      <option value="hard">صعب</option>
+    </select>
+  </div>
+
+  <div class="status" id="status">دور اللاعب: X</div>
+  <div class="board" id="board">
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+    <button class="cell" data-cell></button>
+  </div>
+  <button class="button" id="restartButton">إعادة اللعب</button>
+
+  <div id="scoreboard">
+    <span id="scoreX">X: 0</span> | 
+    <span id="scoreO">O: 0</span> | 
+    <span id="draws">تعادل: 0</span>
+  </div>
+
+  <script>
+    const board = document.getElementById('board');
+    const cells = document.querySelectorAll('[data-cell]');
+    const status = document.getElementById('status');
+    const restartButton = document.getElementById('restartButton');
+    const gameModeInputs = document.querySelectorAll('input[name="gameMode"]');
+    const levelSelect = document.getElementById('levelSelect');
+    const difficultySelect = document.getElementById('difficulty');
+
+    const scoreXElement = document.getElementById('scoreX');
+    const scoreOElement = document.getElementById('scoreO');
+    const drawsElement = document.getElementById('draws');
+
+    let currentPlayer = 'X';
+    let gameActive = true;
+    let gameState = ['', '', '', '', '', '', '', '', ''];
+    let isComputerGame = false;
+    let difficulty = difficultySelect.value;
+
+    // نتائج اللعبة
+    let scoreX = 0;
+    let scoreO = 0;
+    let draws = 0;
+
+    const winningCombinations = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8],
+      [0, 3, 6], [1, 4, 7], [2, 5, 8],
+      [0, 4, 8], [2, 4, 6]
+    ];
+
+    function updateScoreboard() {
+      scoreXElement.textContent = `X: ${scoreX}`;
+      scoreOElement.textContent = `O: ${scoreO}`;
+      drawsElement.textContent = `تعادل: ${draws}`;
+    }
+
+    function handleCellClick(e, index) {
+      const cell = e.target;
+      if (cell.textContent !== '' || !gameActive) return;
+      makeMove(index);
+      if (gameActive && isComputerGame && currentPlayer === 'O') {
+        setTimeout(computerMove, 500);
+      }
+    }
+
+    function makeMove(index) {
+      if (gameState[index] !== '' || !gameActive) return;
+      gameState[index] = currentPlayer;
+      cells[index].textContent = currentPlayer;
+      if (checkWin(gameState, currentPlayer)) {
+        status.textContent = `اللاعب ${currentPlayer} فاز!`;
+        gameActive = false;
+        updateResults(currentPlayer);
+        return;
+      }
+      if (checkDraw()) {
+        status.textContent = 'تعادل!';
+        gameActive = false;
+        updateResults('draw');
+        return;
+      }
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+      status.textContent = `دور اللاعب: ${currentPlayer}`;
+    }
+
+    function computerMove() {
+      if (difficulty === 'easy') {
+        randomMove();
+      } else if (difficulty === 'medium') {
+        if (!mediumMove()) {
+          randomMove();
+        }
+      } else if (difficulty === 'hard') {
+        hardMove();
+      }
+    }
+
+    function randomMove() {
+      const emptyCells = gameState
+        .map((cell, index) => cell === '' ? index : null)
+        .filter(index => index !== null);
+      if (emptyCells.length > 0) {
+        const randomIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        makeMove(randomIndex);
+      }
+    }
+
+    function mediumMove() {
+      for (let i = 0; i < gameState.length; i++) {
+        if (gameState[i] === '') {
+          gameState[i] = 'O';
+          if (checkWin(gameState, 'O')) {
+            gameState[i] = '';
+            makeMove(i);
+            return true;
+          }
+          gameState[i] = '';
+        }
+      }
+      for (let i = 0; i < gameState.length; i++) {
+        if (gameState[i] === '') {
+          gameState[i] = 'X';
+          if (checkWin(gameState, 'X')) {
+            gameState[i] = '';
+            makeMove(i);
+            return true;
+          }
+          gameState[i] = '';
+        }
+      }
+      if (gameState[4] === '') {
+        makeMove(4);
+        return true;
+      }
+      return false;
+    }
+
+    function hardMove() {
+      const bestMove = minimax(gameState, 'O').index;
+      if (bestMove !== undefined) {
+        makeMove(bestMove);
+      }
+    }
+
+    function minimax(newState, player) {
+      const availSpots = newState
+        .map((cell, index) => cell === '' ? index : null)
+        .filter(index => index !== null);
+      if (checkWin(newState, 'X')) {
+        return { score: -10 };
+      } else if (checkWin(newState, 'O')) {
+        return { score: 10 };
+      } else if (availSpots.length === 0) {
+        return { score: 0 };
+      }
+      let moves = [];
+      for (let i = 0; i < availSpots.length; i++) {
+        let move = {};
+        move.index = availSpots[i];
+        newState[availSpots[i]] = player;
+        if (player === 'O') {
+          let result = minimax(newState, 'X');
+          move.score = result.score;
+        } else {
+          let result = minimax(newState, 'O');
+          move.score = result.score;
+        }
+        newState[availSpots[i]] = '';
+        moves.push(move);
+      }
+      let bestMove;
+      if (player === 'O') {
+        let bestScore = -Infinity;
+        for (let i = 0; i < moves.length; i++) {
+          if (moves[i].score > bestScore) {
+            bestScore = moves[i].score;
+            bestMove = i;
+          }
+        }
+      } else {
+        let bestScore = Infinity;
+        for (let i = 0; i < moves.length; i++) {
+          if (moves[i].score < bestScore) {
+            bestScore = moves[i].score;
+            bestMove = i;
+          }
+        }
+      }
+      return moves[bestMove];
+    }
+
+    function checkWin(state, player) {
+      return winningCombinations.some(combination => {
+        return combination.every(index => state[index] === player);
+      });
+    }
+
+    function checkDraw() {
+      return gameState.every(cell => cell !== '');
+    }
+
+    function updateResults(winner) {
+      if (winner === 'draw') {
+        draws++;
+      } else if (winner === 'X') {
+        scoreX++;
+      } else if (winner === 'O') {
+        scoreO++;
+      }
+      updateScoreboard();
+    }
+
+    function restartGame() {
+      currentPlayer = 'X';
+      gameActive = true;
+      gameState = ['', '', '', '', '', '', '', '', ''];
+      cells.forEach(cell => cell.textContent = '');
+      status.textContent = `دور اللاعب: ${currentPlayer}`;
+    }
+
+    function handleModeChange(e) {
+      isComputerGame = e.target.value === 'pvc';
+      levelSelect.style.display = isComputerGame ? 'block' : 'none';
+      restartGame();
+    }
+
+    difficultySelect.addEventListener('change', (e) => {
+      difficulty = e.target.value;
+    });
+
+    cells.forEach((cell, index) => {
+      cell.addEventListener('click', (e) => handleCellClick(e, index));
+    });
+
+    restartButton.addEventListener('click', restartGame);
+
+    gameModeInputs.forEach(input => {
+      input.addEventListener('change', handleModeChange);
+    });
+
+    updateScoreboard();
+  </script>
+</body>
+</html>
